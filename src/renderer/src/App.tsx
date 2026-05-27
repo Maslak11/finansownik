@@ -49,6 +49,7 @@ export default function App() {
           ...DEFAULT_CONFIG,
           ...c,
           installments: c.installments ?? [],
+          hiddenExpenseIds: c.hiddenExpenseIds ?? [],
           geminiApiKey: c.geminiApiKey ?? ''
         }
         setConfigState(merged)

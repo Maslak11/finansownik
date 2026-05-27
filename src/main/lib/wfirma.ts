@@ -191,10 +191,17 @@ export async function fetchExpenses(
     // Jeśli brak pola vat, oblicz z gross - netto (jak dla faktur)
     const vatAmount = vatDirect || (gross > 0 && gross > netto ? Math.round((gross - netto) * 100) / 100 : 0)
 
+    // Kontrahent — obiekt z polem name lub sam string
+    const contractorRaw = exp['contractor']
+    const contractorName = typeof contractorRaw === 'object' && contractorRaw !== null
+      ? String((contractorRaw as Record<string, unknown>)['name'] ?? '')
+      : ''
+
     return {
       id: String(exp['id'] ?? ''),
       date: taxDate || invoiceDate,
       description: String(exp['name'] ?? exp['description'] ?? ''),
+      contractorName,
       nettoAmount: netto,
       vatAmount,
       category: String(exp['category'] ?? '')

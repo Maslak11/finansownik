@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { RefreshCw, AlertCircle, FileText, ChevronDown, ChevronRight } from 'lucide-react'
+import { RefreshCw, AlertCircle, FileText, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import { useAppContext } from '../App'
 import { ipc } from '../lib/ipc'
 import type { Expense } from '../lib/types'
@@ -19,7 +19,7 @@ function monthRange(ym: string) {
 }
 
 export default function Koszty() {
-  const { config } = useAppContext()
+  const { config, saveConfig } = useAppContext()
   const [month, setMonth] = useState(thisMonth())
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(false)
@@ -28,6 +28,7 @@ export default function Koszty() {
   const [groupBy, setGroupBy] = useState<'category' | 'date'>('category')
 
   const hasWfirma = !!config.wfirma.accessKey
+  const hiddenIds = new Set(config.hiddenExpenseIds ?? [])
 
   useEffect(() => {
     if (hasWfirma) loadExpenses()
@@ -46,6 +47,13 @@ export default function Koszty() {
     }
   }
 
+  async function toggleHidden(id: string) {
+    const next = new Set(hiddenIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    await saveConfig({ ...config, hiddenExpenseIds: Array.from(next) })
+  }
+
   function toggleCategory(cat: string) {
     setExpandedCategories(prev => {
       const next = new Set(prev)
@@ -54,12 +62,14 @@ export default function Koszty() {
     })
   }
 
-  // Sumy
-  const totalNetto = expenses.reduce((s, e) => s + e.nettoAmount, 0)
-  const totalVat = expenses.reduce((s, e) => s + (e.vatAmount ?? 0), 0)
+  // Tylko widoczne koszty do sumowania
+  const visibleExpenses = expenses.filter(e => !hiddenIds.has(e.id))
+  const totalNetto = visibleExpenses.reduce((s, e) => s + e.nettoAmount, 0)
+  const totalVat = visibleExpenses.reduce((s, e) => s + (e.vatAmount ?? 0), 0)
   const totalBrutto = totalNetto + totalVat
+  const hiddenCount = expenses.length - visibleExpenses.length
 
-  // Grupowanie
+  // Grupowanie — wszystkie wyświetlane, sumy tylko z widocznych
   const byCategory = expenses.reduce<Record<string, Expense[]>>((acc, e) => {
     const cat = e.category || 'Bez kategorii'
     if (!acc[cat]) acc[cat] = []
@@ -68,7 +78,6 @@ export default function Koszty() {
   }, {})
 
   const sortedByDate = [...expenses].sort((a, b) => b.date.localeCompare(a.date))
-
   const monthLabel = new Date(month + '-15').toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })
 
   return (
@@ -78,13 +87,19 @@ export default function Koszty() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Koszty firmowe</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Wydatki pobrane z wFirma</p>
+          <p className="text-slate-500 text-sm mt-0.5">
+            Wydatki pobrane z wFirma
+            {hiddenCount > 0 && (
+              <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                {hiddenCount} ukrytych
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <input type="month" value={month}
             onChange={e => setMonth(e.target.value)} className="input w-40" />
 
-          {/* Grupowanie */}
           <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
             <button
               onClick={() => setGroupBy('category')}
@@ -124,13 +139,13 @@ export default function Koszty() {
         </div>
       )}
 
-      {/* Podsumowanie */}
-      {expenses.length > 0 && (
+      {/* Podsumowanie — tylko widoczne koszty */}
+      {visibleExpenses.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           <div className="card p-4">
             <p className="text-slate-500 text-sm">Koszty netto</p>
             <p className="text-xl font-bold text-slate-800">{fmt(totalNetto)} zł</p>
-            <p className="text-xs text-slate-400 mt-0.5">{expenses.length} pozycji</p>
+            <p className="text-xs text-slate-400 mt-0.5">{visibleExpenses.length} pozycji</p>
           </div>
           <div className="card p-4">
             <p className="text-slate-500 text-sm">VAT naliczony</p>
@@ -145,7 +160,6 @@ export default function Koszty() {
         </div>
       )}
 
-      {/* Lista */}
       {hasWfirma && !loading && expenses.length === 0 && (
         <div className="card p-8 text-center text-slate-400 space-y-1">
           <FileText size={28} className="mx-auto text-slate-300" />
@@ -159,14 +173,20 @@ export default function Koszty() {
         </div>
       )}
 
-      {/* Grupowanie po kategoriach */}
+      {/* Widok kategorii */}
       {!loading && expenses.length > 0 && groupBy === 'category' && (
         <div className="space-y-3">
           {Object.entries(byCategory)
-            .sort((a, b) => b[1].reduce((s, e) => s + e.nettoAmount, 0) - a[1].reduce((s, e) => s + e.nettoAmount, 0))
+            .sort((a, b) => {
+              const visA = a[1].filter(e => !hiddenIds.has(e.id)).reduce((s, e) => s + e.nettoAmount, 0)
+              const visB = b[1].filter(e => !hiddenIds.has(e.id)).reduce((s, e) => s + e.nettoAmount, 0)
+              return visB - visA
+            })
             .map(([cat, items]) => {
-              const catNetto = items.reduce((s, e) => s + e.nettoAmount, 0)
-              const catVat = items.reduce((s, e) => s + (e.vatAmount ?? 0), 0)
+              const catVisible = items.filter(e => !hiddenIds.has(e.id))
+              const catNetto = catVisible.reduce((s, e) => s + e.nettoAmount, 0)
+              const catVat = catVisible.reduce((s, e) => s + (e.vatAmount ?? 0), 0)
+              const hiddenInCat = items.length - catVisible.length
               const expanded = expandedCategories.has(cat)
               return (
                 <div key={cat} className="card overflow-hidden">
@@ -178,7 +198,12 @@ export default function Koszty() {
                       {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </span>
                     <span className="flex-1 text-left font-medium text-slate-800">{cat}</span>
-                    <span className="text-xs text-slate-400 mr-4">{items.length} pozycji</span>
+                    <span className="text-xs text-slate-400 mr-4">
+                      {catVisible.length} pozycji
+                      {hiddenInCat > 0 && (
+                        <span className="ml-1.5 text-amber-500">· {hiddenInCat} ukrytych</span>
+                      )}
+                    </span>
                     <span className="text-sm font-semibold text-slate-700">{fmt(catNetto)} zł</span>
                     {catVat > 0 && (
                       <span className="text-xs text-emerald-600 ml-2">+{fmt(catVat)} VAT</span>
@@ -190,33 +215,62 @@ export default function Koszty() {
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50">
                           <tr>
-                            <th className="text-left px-5 py-2.5 text-xs font-medium text-slate-500">Data</th>
+                            <th className="text-left px-5 py-2.5 text-xs font-medium text-slate-500 w-24">Data</th>
                             <th className="text-left px-3 py-2.5 text-xs font-medium text-slate-500">Opis</th>
+                            <th className="text-left px-3 py-2.5 text-xs font-medium text-slate-500">Kontrahent</th>
                             <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-500">Netto</th>
-                            <th className="text-right px-5 py-2.5 text-xs font-medium text-slate-500">VAT</th>
+                            <th className="text-right px-3 py-2.5 text-xs font-medium text-slate-500">VAT</th>
+                            <th className="w-8 px-2 py-2.5" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                           {items
                             .sort((a, b) => b.date.localeCompare(a.date))
-                            .map(exp => (
-                              <tr key={exp.id} className="hover:bg-slate-50">
-                                <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{exp.date}</td>
-                                <td className="px-3 py-3 text-slate-700 max-w-xs truncate">{exp.description || '—'}</td>
-                                <td className="px-3 py-3 text-right tabular-nums text-slate-800 font-medium whitespace-nowrap">{fmt(exp.nettoAmount)} zł</td>
-                                <td className="px-5 py-3 text-right tabular-nums text-emerald-600 whitespace-nowrap">
-                                  {(exp.vatAmount ?? 0) > 0 ? `${fmt(exp.vatAmount ?? 0)} zł` : '—'}
-                                </td>
-                              </tr>
-                            ))}
+                            .map(exp => {
+                              const hidden = hiddenIds.has(exp.id)
+                              return (
+                                <tr
+                                  key={exp.id}
+                                  className={`group transition-opacity ${hidden ? 'opacity-40' : 'hover:bg-slate-50'}`}
+                                >
+                                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{exp.date}</td>
+                                  <td className="px-3 py-2.5 text-slate-700 max-w-[180px] truncate" title={exp.description}>
+                                    {exp.description || '—'}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-500 text-xs max-w-[140px] truncate" title={exp.contractorName}>
+                                    {exp.contractorName || '—'}
+                                  </td>
+                                  <td className={`px-3 py-2.5 text-right tabular-nums font-medium whitespace-nowrap ${hidden ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                    {fmt(exp.nettoAmount)} zł
+                                  </td>
+                                  <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${hidden ? 'text-slate-300' : 'text-emerald-600'}`}>
+                                    {(exp.vatAmount ?? 0) > 0 ? `${fmt(exp.vatAmount ?? 0)} zł` : '—'}
+                                  </td>
+                                  <td className="px-2 py-2.5 text-center">
+                                    <button
+                                      onClick={() => toggleHidden(exp.id)}
+                                      title={hidden ? 'Wlicz do kosztów firmowych' : 'Wyłącz z kosztów firmowych'}
+                                      className={`p-1 rounded transition-colors ${
+                                        hidden
+                                          ? 'text-amber-400 hover:text-slate-600'
+                                          : 'text-slate-200 hover:text-amber-500 opacity-0 group-hover:opacity-100'
+                                      }`}
+                                    >
+                                      {hidden ? <Eye size={14} /> : <EyeOff size={14} />}
+                                    </button>
+                                  </td>
+                                </tr>
+                              )
+                            })}
                         </tbody>
                         <tfoot className="bg-slate-50 border-t border-slate-200">
                           <tr>
-                            <td colSpan={2} className="px-5 py-2.5 text-xs font-medium text-slate-500">Suma kategorii</td>
+                            <td colSpan={3} className="px-5 py-2.5 text-xs font-medium text-slate-500">Suma kategorii</td>
                             <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-800">{fmt(catNetto)} zł</td>
-                            <td className="px-5 py-2.5 text-right tabular-nums font-medium text-emerald-600">
+                            <td className="px-3 py-2.5 text-right tabular-nums font-medium text-emerald-600">
                               {catVat > 0 ? `${fmt(catVat)} zł` : '—'}
                             </td>
+                            <td />
                           </tr>
                         </tfoot>
                       </table>
@@ -235,6 +289,9 @@ export default function Koszty() {
               {totalVat > 0 && (
                 <span className="ml-3 text-emerald-400 text-sm">+{fmt(totalVat)} zł VAT</span>
               )}
+              {hiddenCount > 0 && (
+                <span className="ml-3 text-amber-400 text-xs">({hiddenCount} ukrytych)</span>
+              )}
             </div>
           </div>
         </div>
@@ -246,37 +303,71 @@ export default function Koszty() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">Data</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-slate-500 w-24">Data</th>
                 <th className="text-left px-3 py-3 text-xs font-medium text-slate-500">Opis</th>
+                <th className="text-left px-3 py-3 text-xs font-medium text-slate-500">Kontrahent</th>
                 <th className="text-left px-3 py-3 text-xs font-medium text-slate-500">Kategoria</th>
                 <th className="text-right px-3 py-3 text-xs font-medium text-slate-500">Netto</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-slate-500">VAT</th>
+                <th className="text-right px-3 py-3 text-xs font-medium text-slate-500">VAT</th>
+                <th className="w-8 px-2 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sortedByDate.map(exp => (
-                <tr key={exp.id} className="hover:bg-slate-50">
-                  <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{exp.date}</td>
-                  <td className="px-3 py-3 text-slate-700 max-w-xs truncate">{exp.description || '—'}</td>
-                  <td className="px-3 py-3">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                      {exp.category || 'Bez kategorii'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums font-medium text-slate-800 whitespace-nowrap">{fmt(exp.nettoAmount)} zł</td>
-                  <td className="px-5 py-3 text-right tabular-nums text-emerald-600 whitespace-nowrap">
-                    {(exp.vatAmount ?? 0) > 0 ? `${fmt(exp.vatAmount ?? 0)} zł` : '—'}
-                  </td>
-                </tr>
-              ))}
+              {sortedByDate.map(exp => {
+                const hidden = hiddenIds.has(exp.id)
+                return (
+                  <tr
+                    key={exp.id}
+                    className={`group transition-opacity ${hidden ? 'opacity-40' : 'hover:bg-slate-50'}`}
+                  >
+                    <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{exp.date}</td>
+                    <td className="px-3 py-2.5 text-slate-700 max-w-[160px] truncate" title={exp.description}>
+                      {exp.description || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-500 text-xs max-w-[130px] truncate" title={exp.contractorName}>
+                      {exp.contractorName || '—'}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        {exp.category || 'Bez kategorii'}
+                      </span>
+                    </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums font-medium whitespace-nowrap ${hidden ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                      {fmt(exp.nettoAmount)} zł
+                    </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${hidden ? 'text-slate-300' : 'text-emerald-600'}`}>
+                      {(exp.vatAmount ?? 0) > 0 ? `${fmt(exp.vatAmount ?? 0)} zł` : '—'}
+                    </td>
+                    <td className="px-2 py-2.5 text-center">
+                      <button
+                        onClick={() => toggleHidden(exp.id)}
+                        title={hidden ? 'Wlicz do kosztów firmowych' : 'Wyłącz z kosztów firmowych'}
+                        className={`p-1 rounded transition-colors ${
+                          hidden
+                            ? 'text-amber-400 hover:text-slate-600'
+                            : 'text-slate-200 hover:text-amber-500 opacity-0 group-hover:opacity-100'
+                        }`}
+                      >
+                        {hidden ? <Eye size={14} /> : <EyeOff size={14} />}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot className="bg-slate-50 border-t-2 border-slate-200">
               <tr>
-                <td colSpan={3} className="px-5 py-3 text-sm font-semibold text-slate-700">Razem</td>
+                <td colSpan={4} className="px-5 py-3 text-sm font-semibold text-slate-700">
+                  Razem
+                  {hiddenCount > 0 && (
+                    <span className="ml-2 text-xs font-normal text-amber-600">({hiddenCount} ukrytych)</span>
+                  )}
+                </td>
                 <td className="px-3 py-3 text-right tabular-nums font-bold text-slate-900">{fmt(totalNetto)} zł</td>
-                <td className="px-5 py-3 text-right tabular-nums font-semibold text-emerald-600">
+                <td className="px-3 py-3 text-right tabular-nums font-semibold text-emerald-600">
                   {totalVat > 0 ? `${fmt(totalVat)} zł` : '—'}
                 </td>
+                <td />
               </tr>
             </tfoot>
           </table>

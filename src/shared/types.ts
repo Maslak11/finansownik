@@ -45,6 +45,7 @@ export interface AppConfig {
   czynsz: number
   fixedExpenses: FixedExpense[]
   installments: Installment[]
+  hiddenExpenseIds: string[]
   wizardCompleted: boolean
   geminiApiKey: string
 }
@@ -66,6 +67,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   czynsz: 0,
   fixedExpenses: [],
   installments: [],
+  hiddenExpenseIds: [],
   wizardCompleted: false,
   geminiApiKey: ''
 }
@@ -85,6 +87,7 @@ export interface Expense {
   id: string
   date: string
   description: string
+  contractorName: string
   nettoAmount: number
   vatAmount: number
   category: string
