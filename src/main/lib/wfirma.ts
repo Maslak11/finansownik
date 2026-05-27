@@ -55,12 +55,53 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
   return json as T
 }
 
+/**
+ * wFirma może zwrócić listę na kilka sposobów:
+ *   A) [ { invoice: {...} }, ... ]          — tablica obiektów-opakowań
+ *   B) { invoice: [ {...}, {...} ] }         — obiekt z tablicą wewnątrz
+ *   C) { invoice: {...} }                   — obiekt z jednym elementem
+ *   D) []                                   — pusta tablica
+ * Funkcja normalizuje wszystkie warianty do płaskiej tablicy rekordów.
+ */
+function normalizeList(raw: unknown, itemKey: string): Record<string, unknown>[] {
+  console.log(`[wFirma] raw "${itemKey}" type:`, typeof raw, Array.isArray(raw) ? 'array' : '')
+  console.log(`[wFirma] raw "${itemKey}" value:`, JSON.stringify(raw)?.slice(0, 500))
+
+  if (!raw) return []
+
+  // Wariant A: tablica [ { invoice: {...} }, ... ]
+  if (Array.isArray(raw)) {
+    return raw.map((item) => {
+      const obj = item as Record<string, unknown>
+      return (obj[itemKey] ?? obj) as Record<string, unknown>
+    })
+  }
+
+  // Wariant B/C: obiekt { invoice: [...] lub {...} }
+  if (typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>
+    const inner = obj[itemKey]
+
+    if (Array.isArray(inner)) {
+      // Wariant B
+      return inner as Record<string, unknown>[]
+    }
+    if (inner && typeof inner === 'object') {
+      // Wariant C — pojedynczy element
+      return [inner as Record<string, unknown>]
+    }
+    // Sam obiekt to jeden element (brak klucza zagnieżdżonego)
+    return [obj]
+  }
+
+  return []
+}
+
 export async function fetchInvoices(
   credentials: WfirmaCredentials,
   dateFrom: string,
   dateTo: string
 ): Promise<Invoice[]> {
-  // wFirma API v2: conditions używa tablicy condition z operatorami ge/le
   const response = await wfirmaPost<Record<string, unknown>>({
     credentials,
     endpoint: 'invoices/find',
@@ -81,11 +122,9 @@ export async function fetchInvoices(
     }
   })
 
-  // wFirma zwraca: { invoices: [ { invoice: {...} }, ... ], status: { code: 'OK' } }
-  const raw = (response['invoices'] as Record<string, unknown>[] | undefined) ?? []
-  return raw.map((item) => {
-    // Każdy element to { invoice: { id, fullnumber, ... } }
-    const inv = (item['invoice'] ?? item) as Record<string, unknown>
+  const invoices = normalizeList(response['invoices'], 'invoice')
+
+  return invoices.map((inv) => {
     const contractor = inv['contractor'] as Record<string, unknown> | undefined
     return {
       id: String(inv['id'] ?? ''),
@@ -125,18 +164,15 @@ export async function fetchExpenses(
     }
   })
 
-  // wFirma zwraca: { expenses: [ { expense: {...} }, ... ], status: { code: 'OK' } }
-  const raw = (response['expenses'] as Record<string, unknown>[] | undefined) ?? []
-  return raw.map((item) => {
-    const exp = (item['expense'] ?? item) as Record<string, unknown>
-    return {
-      id: String(exp['id'] ?? ''),
-      date: String(exp['date'] ?? ''),
-      description: String(exp['name'] ?? exp['description'] ?? ''),
-      nettoAmount: parseFloat(String(exp['netto'] ?? '0')),
-      category: String(exp['category'] ?? '')
-    } satisfies Expense
-  })
+  const expenses = normalizeList(response['expenses'], 'expense')
+
+  return expenses.map((exp) => ({
+    id: String(exp['id'] ?? ''),
+    date: String(exp['date'] ?? ''),
+    description: String(exp['name'] ?? exp['description'] ?? ''),
+    nettoAmount: parseFloat(String(exp['netto'] ?? '0')),
+    category: String(exp['category'] ?? '')
+  } satisfies Expense))
 }
 
 export async function testConnection(credentials: WfirmaCredentials): Promise<void> {
