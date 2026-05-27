@@ -32,19 +32,21 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
     const xmlCode = text.match(/<code>([^<]+)<\/code>/)?.[1]
     const xmlMsg = text.match(/<message>([^<]+)<\/message>/)?.[1]
     if (xmlCode === 'AUTH') throw new Error('Nieprawidłowe klucze API. Sprawdź accessKey, secretKey i appKey.')
-    throw new Error(xmlMsg ?? xmlCode ?? `wFirma API ${res.status}`)
+    throw new Error(xmlMsg ?? xmlCode ?? `wFirma API ${res.status}: ${text.slice(0, 300)}`)
   }
 
-  // Parsuj JSON
+  // Próbuj parsować JSON
   let json: Record<string, unknown>
   try {
     json = JSON.parse(text) as Record<string, unknown>
   } catch {
+    // API zwróciło XML lub inną odpowiedź — wyciągnij komunikat
     const xmlCode = text.match(/<code>([^<]+)<\/code>/)?.[1]
     const xmlMsg = text.match(/<message>([^<]+)<\/message>/)?.[1]
-    throw new Error(xmlMsg ?? xmlCode ?? `Nieoczekiwana odpowiedź: ${text.slice(0, 200)}`)
+    throw new Error(xmlMsg ?? xmlCode ?? `Nieoczekiwana odpowiedź (${res.status}): ${text.slice(0, 300)}`)
   }
 
+  // Sprawdź status w JSON
   const status = json['status'] as { code?: string; message?: string } | undefined
   if (status && status.code !== 'OK') {
     throw new Error(status.message ?? `wFirma błąd: ${status.code}`)
@@ -58,13 +60,19 @@ export async function fetchInvoices(
   dateFrom: string,
   dateTo: string
 ): Promise<Invoice[]> {
+  // wFirma API v2: conditions używa tablicy condition z operatorami ge/le
   const response = await wfirmaPost<Record<string, unknown>>({
     credentials,
     endpoint: 'invoices/find',
     body: {
       invoices: {
         parameters: {
-          conditions: { or: [{ date: { from: dateFrom, to: dateTo } }] },
+          conditions: {
+            condition: [
+              { field: 'date', operator: 'ge', value: dateFrom },
+              { field: 'date', operator: 'le', value: dateTo }
+            ]
+          },
           page: 1,
           limit: 100,
           order: [{ field: 'date', direction: 'DESC' }]
@@ -73,17 +81,20 @@ export async function fetchInvoices(
     }
   })
 
+  // wFirma zwraca: { invoices: [ { invoice: {...} }, ... ], status: { code: 'OK' } }
   const raw = (response['invoices'] as Record<string, unknown>[] | undefined) ?? []
   return raw.map((item) => {
-    const inv = item as Record<string, unknown>
+    // Każdy element to { invoice: { id, fullnumber, ... } }
+    const inv = (item['invoice'] ?? item) as Record<string, unknown>
+    const contractor = inv['contractor'] as Record<string, unknown> | undefined
     return {
       id: String(inv['id'] ?? ''),
       number: String(inv['fullnumber'] ?? inv['number'] ?? ''),
       date: String(inv['date'] ?? ''),
-      clientName: String((inv['contractor'] as Record<string, unknown> | undefined)?.['name'] ?? ''),
+      clientName: String(contractor?.['name'] ?? ''),
       nettoAmount: parseFloat(String(inv['netto'] ?? '0')),
       vatAmount: parseFloat(String(inv['vat'] ?? '0')),
-      bruttoAmount: parseFloat(String(inv['gross'] ?? '0')),
+      bruttoAmount: parseFloat(String(inv['gross'] ?? inv['brutto'] ?? '0')),
       paid: inv['payment_state'] === 'paid'
     } satisfies Invoice
   })
@@ -100,17 +111,24 @@ export async function fetchExpenses(
     body: {
       expenses: {
         parameters: {
-          conditions: { or: [{ date: { from: dateFrom, to: dateTo } }] },
+          conditions: {
+            condition: [
+              { field: 'date', operator: 'ge', value: dateFrom },
+              { field: 'date', operator: 'le', value: dateTo }
+            ]
+          },
           page: 1,
-          limit: 200
+          limit: 200,
+          order: [{ field: 'date', direction: 'DESC' }]
         }
       }
     }
   })
 
+  // wFirma zwraca: { expenses: [ { expense: {...} }, ... ], status: { code: 'OK' } }
   const raw = (response['expenses'] as Record<string, unknown>[] | undefined) ?? []
   return raw.map((item) => {
-    const exp = item as Record<string, unknown>
+    const exp = (item['expense'] ?? item) as Record<string, unknown>
     return {
       id: String(exp['id'] ?? ''),
       date: String(exp['date'] ?? ''),
