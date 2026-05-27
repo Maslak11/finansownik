@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { TrendingUp, AlertCircle, RefreshCw } from 'lucide-react'
 import { useAppContext } from '../App'
 import { ipc } from '../lib/ipc'
-import { calculateTax, estimateQuarterlyAdvance } from '../lib/tax'
+import { calculateTax } from '../lib/tax'
 import { quickAllocate } from '../lib/allocator'
 import KopertaBar from '../components/KopertaBar'
 import type { Invoice, Expense } from '../lib/types'
@@ -14,23 +14,13 @@ function fmt(n: number) {
 function currentMonthRange() {
   const now = new Date()
   const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const m = now.getMonth() + 1
+  const lastDay = new Date(y, m, 0).getDate()
+  const mm = String(m).padStart(2, '0')
   return {
-    dateFrom: `${y}-${m}-01`,
-    dateTo: `${y}-${m}-31`,
-    label: `${m}/${y}`
-  }
-}
-
-function currentQuarterRange() {
-  const now = new Date()
-  const y = now.getFullYear()
-  const q = Math.floor(now.getMonth() / 3)
-  const firstMonth = q * 3 + 1
-  const lastMonth = firstMonth + 2
-  return {
-    dateFrom: `${y}-${String(firstMonth).padStart(2, '0')}-01`,
-    dateTo: `${y}-${String(lastMonth).padStart(2, '0')}-31`
+    dateFrom: `${y}-${mm}-01`,
+    dateTo: `${y}-${mm}-${lastDay}`,
+    label: `${mm}/${y}`
   }
 }
 
@@ -45,7 +35,6 @@ export default function Dashboard() {
   const [quickKoperty, setQuickKoperty] = useState<ReturnType<typeof quickAllocate> | null>(null)
 
   const hasWfirma = config.wfirma.accessKey.length > 0
-
   const range = currentMonthRange()
 
   useEffect(() => {
@@ -56,10 +45,9 @@ export default function Dashboard() {
     setLoading(true)
     setError('')
     try {
-      const qr = currentQuarterRange()
       const [inv, exp] = await Promise.all([
-        ipc.getInvoices(config.wfirma, qr.dateFrom, qr.dateTo),
-        ipc.getExpenses(config.wfirma, qr.dateFrom, qr.dateTo)
+        ipc.getInvoices(config.wfirma, range.dateFrom, range.dateTo),
+        ipc.getExpenses(config.wfirma, range.dateFrom, range.dateTo)
       ])
       setInvoices(inv)
       setExpenses(exp)
@@ -70,17 +58,9 @@ export default function Dashboard() {
     }
   }
 
-  const monthInv = invoices.filter((i) => i.date >= range.dateFrom && i.date <= range.dateTo)
-  const monthRevenue = monthInv.reduce((s, i) => s + i.nettoAmount, 0)
-  const monthExpenses = expenses
-    .filter((e) => e.date >= range.dateFrom && e.date <= range.dateTo)
-    .reduce((s, e) => s + e.nettoAmount, 0)
-
-  const quarterRevenue = invoices.reduce((s, i) => s + i.nettoAmount, 0)
-  const quarterExpenses = expenses.reduce((s, e) => s + e.nettoAmount, 0)
-
-  const taxResult = calculateTax(quarterRevenue, quarterExpenses, config)
-  const quarterlyAdvance = estimateQuarterlyAdvance(quarterRevenue, quarterExpenses, config)
+  const monthRevenue = invoices.reduce((s, i) => s + i.nettoAmount, 0)
+  const monthExpenses = expenses.reduce((s, e) => s + e.nettoAmount, 0)
+  const taxResult = calculateTax(monthRevenue, monthExpenses, config)
 
   function handleQuickCalc() {
     const n = parseFloat(quickAmount.replace(',', '.'))
@@ -123,34 +103,34 @@ export default function Dashboard() {
         <StatCard
           label={`Przychód ${range.label}`}
           value={`${fmt(monthRevenue)} zł`}
-          sub={`${monthInv.length} faktur`}
+          sub={`${invoices.length} faktur`}
           color="sky"
         />
         <StatCard
-          label="Szacowany podatek (kw.)"
-          value={`${fmt(quarterlyAdvance)} zł`}
+          label="Szacowany podatek"
+          value={`${fmt(taxResult.podatek)} zł`}
           sub={`dochód: ${fmt(taxResult.dochod)} zł`}
           color="red"
         />
         <StatCard
           label="ZUS łącznie (mies.)"
-          value={`${fmt(config.tax.zusSpołeczne + config.tax.zusZdrowotnaMin)} zł`}
-          sub="społeczne + zdrowotna (min)"
+          value={`${fmt(config.tax.zusSpołeczne + taxResult.skladkaZdrowotna)} zł`}
+          sub={`społeczne + zdrowotna`}
           color="orange"
         />
       </div>
 
-      {/* Kwartalne podsumowanie */}
-      {(quarterRevenue > 0 || !hasWfirma) && (
+      {/* Miesięczne podsumowanie */}
+      {(monthRevenue > 0 || !hasWfirma) && (
         <div className="card p-5">
           <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
             <TrendingUp size={16} />
-            Szacunek podatkowy — bieżący kwartał
+            Szacunek podatkowy — {range.label}
           </h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <Row label="Przychód netto" value={`${fmt(quarterRevenue)} zł`} />
-            <Row label="Koszty firmowe" value={`${fmt(quarterExpenses)} zł`} />
-            <Row label="ZUS społeczne (odliczane)" value={`${fmt(config.tax.zusSpołeczne)} zł`} />
+            <Row label="Przychód netto" value={`${fmt(monthRevenue)} zł`} />
+            <Row label="Koszty firmowe" value={`${fmt(monthExpenses)} zł`} />
+            <Row label="ZUS społeczne (odliczane)" value={`− ${fmt(config.tax.zusSpołeczne)} zł`} />
             <Row label="Dochód podatkowy" value={`${fmt(taxResult.dochod)} zł`} bold />
             <Row label="Składka zdrowotna (4,9%)" value={`${fmt(taxResult.skladkaZdrowotna)} zł`} />
             <Row label="Zaliczka PIT 19%" value={`${fmt(taxResult.podatek)} zł`} bold red />
@@ -193,11 +173,11 @@ export default function Dashboard() {
       </div>
 
       {/* Ostatnie faktury */}
-      {monthInv.length > 0 && (
+      {invoices.length > 0 && (
         <div className="card p-5">
           <h2 className="font-semibold text-slate-800 mb-3">Faktury tego miesiąca</h2>
           <div className="space-y-2">
-            {monthInv.slice(0, 5).map((inv) => (
+            {invoices.slice(0, 5).map((inv) => (
               <div key={inv.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
                 <div>
                   <span className="font-medium text-slate-800 text-sm">{inv.number}</span>
