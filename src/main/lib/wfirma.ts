@@ -99,8 +99,8 @@ export async function fetchInvoices(
   dateFrom: string,
   dateTo: string
 ): Promise<Invoice[]> {
-  // Pobieramy bez warunków datowych — wFirma conditions zwracają błędny format odpowiedzi.
-  // Filtrujemy daty po stronie klienta.
+  console.log('[wFirma] fetchInvoices', dateFrom, '->', dateTo)
+
   const response = await wfirmaPost<Record<string, unknown>>({
     credentials,
     endpoint: 'invoices/find',
@@ -115,25 +115,32 @@ export async function fetchInvoices(
     }
   })
 
-  const invoices = normalizeList(response['invoices'], 'invoice')
+  console.log('[wFirma] invoices response keys:', Object.keys(response))
+  console.log('[wFirma] invoices raw type:', typeof response['invoices'], Array.isArray(response['invoices']) ? 'array' : '')
+  const rawSnippet = JSON.stringify(response['invoices'])?.slice(0, 300)
+  console.log('[wFirma] invoices raw snippet:', rawSnippet)
 
-  return invoices
-    .map((inv) => {
-      const contractor = inv['contractor'] as Record<string, unknown> | undefined
-      const paid = inv['paymentstate'] === 'paid' || inv['payment_state'] === 'paid'
-      return {
-        id: String(inv['id'] ?? ''),
-        number: String(inv['fullnumber'] ?? inv['number'] ?? ''),
-        date: String(inv['date'] ?? ''),
-        clientName: String(contractor?.['name'] ?? ''),
-        nettoAmount: parseFloat(String(inv['netto'] ?? '0')),
-        vatAmount: parseFloat(String(inv['vat'] ?? '0')),
-        bruttoAmount: parseFloat(String(inv['gross'] ?? inv['total'] ?? inv['brutto'] ?? '0')),
-        paid
-      } satisfies Invoice
-    })
-    // Filtruj po zakresie dat po stronie klienta
-    .filter(inv => inv.date >= dateFrom && inv.date <= dateTo)
+  const invoices = normalizeList(response['invoices'], 'invoice')
+  console.log('[wFirma] normalized count:', invoices.length)
+
+  const mapped = invoices.map((inv) => {
+    const contractor = inv['contractor'] as Record<string, unknown> | undefined
+    const paid = inv['paymentstate'] === 'paid' || inv['payment_state'] === 'paid'
+    return {
+      id: String(inv['id'] ?? ''),
+      number: String(inv['fullnumber'] ?? inv['number'] ?? ''),
+      date: String(inv['date'] ?? ''),
+      clientName: String(contractor?.['name'] ?? ''),
+      nettoAmount: parseFloat(String(inv['netto'] ?? '0')),
+      vatAmount: parseFloat(String(inv['vat'] ?? '0')),
+      bruttoAmount: parseFloat(String(inv['gross'] ?? inv['total'] ?? inv['brutto'] ?? '0')),
+      paid
+    } satisfies Invoice
+  })
+
+  const filtered = mapped.filter(inv => inv.date >= dateFrom && inv.date <= dateTo)
+  console.log('[wFirma] after date filter:', filtered.length, 'of', mapped.length)
+  return filtered
 }
 
 export async function fetchExpenses(
