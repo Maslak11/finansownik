@@ -18,9 +18,10 @@ interface AllocateInput {
  *   2. ZUS            (społeczne + zdrowotna / avg faktur)
  *   3. Czynsz         (stała kwota / avg faktur)
  *   4. Subskrypcje    (stałe opłaty / avg faktur)
- *   5. Dom            (% z netto)
- *   6. Inwestycje     (% z netto)
- *   7. Do dyspozycji  (reszta ≥ 0)
+ *   5. Raty/kredyty   (suma rat / avg faktur — NIE koszty podatkowe)
+ *   6. Dom            (% z netto)
+ *   7. Inwestycje     (% z netto)
+ *   8. Do dyspozycji  (reszta ≥ 0)
  */
 export function allocateInvoice(input: AllocateInput): InvoiceAllocation {
   const { invoice, totalMonthRevenue, totalMonthExpenses, config } = input
@@ -52,17 +53,27 @@ export function allocateInvoice(input: AllocateInput): InvoiceAllocation {
   const subskrypcje = take(subskrypcjeWant, remaining)
   remaining -= subskrypcje
 
-  // 5. Dom — % z netto (nie z pozostałości — zachowujemy intencję ustawień)
+  // 5. Raty i kredyty — rozłożone na avg faktur.
+  //    NIE są kosztem podatkowym (kredyty konsumenckie), ale realnie
+  //    zajmują środki z faktury — dlatego są w kopertach.
+  const totalInstallmentsMonthly = (config.installments ?? [])
+    .filter(i => i.remainingInstallments > 0)
+    .reduce((s, i) => s + i.monthlyAmount, 0)
+  const ratyWant = round2(totalInstallmentsMonthly / avg)
+  const raty = take(ratyWant, remaining)
+  remaining -= raty
+
+  // 6. Dom — % z netto (nie z pozostałości — zachowujemy intencję ustawień)
   const domWant = round2(netto * (allocation.dom / 100))
   const dom = take(domWant, remaining)
   remaining -= dom
 
-  // 6. Inwestycje — % z netto
+  // 7. Inwestycje — % z netto
   const inwestycjeWant = round2(netto * (allocation.inwestycje / 100))
   const inwestycje = take(inwestycjeWant, remaining)
   remaining -= inwestycje
 
-  // 7. Do dyspozycji — co zostało (zawsze ≥ 0)
+  // 8. Do dyspozycji — co zostało (zawsze ≥ 0)
   const dostepne = round2(Math.max(0, remaining))
 
   const koperty: Koperty = {
@@ -70,6 +81,7 @@ export function allocateInvoice(input: AllocateInput): InvoiceAllocation {
     zus,
     czynsz: czynszPortion,
     subskrypcje,
+    raty,
     dom,
     inwestycje,
     dostepne

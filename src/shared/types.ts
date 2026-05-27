@@ -98,6 +98,7 @@ export interface Koperty {
   zus: number
   czynsz: number
   subskrypcje: number
+  raty: number        // raty i kredyty — NIE są kosztem podatkowym
   dom: number
   inwestycje: number
   dostepne: number

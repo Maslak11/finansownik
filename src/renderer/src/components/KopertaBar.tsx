@@ -5,6 +5,7 @@ const COLORS: Record<keyof Koperty, string> = {
   zus: 'bg-orange-400',
   czynsz: 'bg-yellow-400',
   subskrypcje: 'bg-purple-400',
+  raty: 'bg-pink-400',
   dom: 'bg-blue-400',
   inwestycje: 'bg-emerald-400',
   dostepne: 'bg-slate-300'
@@ -15,6 +16,7 @@ const LABELS: Record<keyof Koperty, string> = {
   zus: 'ZUS',
   czynsz: 'Czynsz',
   subskrypcje: 'Subskrypcje',
+  raty: 'Raty i kredyty',
   dom: 'Dom',
   inwestycje: 'Inwestycje',
   dostepne: 'Do dyspozycji'
