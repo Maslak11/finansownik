@@ -45,27 +45,28 @@ function Row({ label, value, bold, green, red, gray, indent }: {
   )
 }
 
-function DueCard({ title, deadline, rows, total, totalLabel = 'Do zapłaty' }: {
+function DueCard({ title, deadline, rows, total, totalLabel = 'Do zapłaty', surplus }: {
   title: string
   deadline: string
-  rows: { label: string; value: number; gray?: boolean }[]
+  rows: { label: string; value: number; gray?: boolean; subtract?: boolean }[]
   total: number
   totalLabel?: string
+  surplus?: boolean   // true = nadwyżka (zielona)
 }) {
   return (
     <div className="card p-5">
-      <div className="flex items-start justify-between mb-1">
-        <h2 className="font-semibold text-slate-800">{title}</h2>
-      </div>
+      <h2 className="font-semibold text-slate-800 mb-1">{title}</h2>
       <p className="text-xs text-slate-400 mb-4">Termin: <span className="text-slate-500 font-medium">{deadline}</span></p>
       <div>
         {rows.map((r, i) => (
-          <Row key={i} label={r.label} value={`${fmt(r.value)} zł`} gray={r.gray} />
+          <Row key={i} label={r.label}
+            value={`${r.subtract ? '− ' : ''}${fmt(Math.abs(r.value))} zł`}
+            gray={r.gray} />
         ))}
         <div className="flex justify-between pt-3 mt-2 border-t-2 border-slate-200">
           <span className="font-semibold text-slate-800">{totalLabel}</span>
-          <span className={`font-bold text-lg ${total > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-            {fmt(total)} zł
+          <span className={`font-bold text-lg ${surplus || total === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            {fmt(Math.abs(total))} zł
           </span>
         </div>
       </div>
@@ -232,11 +233,11 @@ export default function Podatek() {
           deadline={`25 ${nextMonthDeadline(month, 25).split(' ').slice(1).join(' ')}`}
           rows={[
             { label: 'VAT należny (ze sprzedaży)', value: vatNalezny },
-            { label: 'VAT naliczony (z zakupów)', value: -vatNaliczony },
-            ...(vatNadwyzka > 0 ? [{ label: 'Nadwyżka VAT (przeniesiona lub do zwrotu)', value: 0, gray: true }] : [])
+            { label: 'VAT naliczony (z zakupów)', value: vatNaliczony, subtract: true, gray: vatNaliczony === 0 },
           ]}
-          total={vatDoZaplaty}
-          totalLabel={vatNadwyzka > 0 ? `Nadwyżka VAT: ${fmt(vatNadwyzka)} zł` : 'VAT do zapłaty'}
+          total={vatNadwyzka > 0 ? vatNadwyzka : vatDoZaplaty}
+          totalLabel={vatNadwyzka > 0 ? 'Nadwyżka (do zwrotu/przeniesienia)' : 'VAT do zapłaty'}
+          surplus={vatNadwyzka > 0}
         />
 
         {/* ZUS */}
