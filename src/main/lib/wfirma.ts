@@ -29,6 +29,7 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
   const text = await res.text()
 
   if (!res.ok) {
+    console.error('[wFirma] HTTP error', res.status, text.slice(0, 400))
     const xmlCode = text.match(/<code>([^<]+)<\/code>/)?.[1]
     const xmlMsg = text.match(/<message>([^<]+)<\/message>/)?.[1]
     if (xmlCode === 'AUTH') throw new Error('Nieprawidłowe klucze API. Sprawdź accessKey, secretKey i appKey.')
@@ -40,9 +41,12 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
   try {
     json = JSON.parse(text) as Record<string, unknown>
   } catch {
+    // API zwróciło XML lub inną odpowiedź mimo statusu 200
+    console.error('[wFirma] Non-JSON response:', JSON.stringify(text.slice(0, 600)))
     const xmlCode = text.match(/<code>([^<]+)<\/code>/)?.[1]
     const xmlMsg = text.match(/<message>([^<]+)<\/message>/)?.[1]
-    throw new Error(xmlMsg ?? xmlCode ?? `Nieoczekiwana odpowiedź (${res.status}): ${text.slice(0, 300)}`)
+    const anyTag = text.match(/<(\w+)>([^<]{1,100})<\/\1>/)?.[2]
+    throw new Error(xmlMsg ?? xmlCode ?? anyTag ?? `Nieoczekiwana odpowiedź (${res.status}): ${text.slice(0, 300)}`)
   }
 
   // Sprawdź status w JSON
@@ -58,15 +62,11 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
  * wFirma zwraca listy jako obiekt z kluczami numerycznymi:
  *   { "0": { invoice: {...} }, "1": { invoice: {...} }, ... }
  *
- * Obsługuje też inne warianty na wszelki wypadek:
- *   - tablica [ { invoice: {...} }, ... ]
- *   - { invoice: [ {...} ] }
- *   - { invoice: {...} }
+ * Obsługuje też: tablicę, { invoice: [] }, { invoice: {} }
  */
 function normalizeList(raw: unknown, itemKey: string): Record<string, unknown>[] {
   if (!raw) return []
 
-  // Tablica — iterujemy i odpkowujemy itemKey
   if (Array.isArray(raw)) {
     return raw.map((item) => {
       const obj = item as Record<string, unknown>
@@ -78,8 +78,7 @@ function normalizeList(raw: unknown, itemKey: string): Record<string, unknown>[]
     const obj = raw as Record<string, unknown>
     const keys = Object.keys(obj)
 
-    // Obiekt z kluczami numerycznymi: { "0": { invoice: {...} }, "1": ... }
-    // To jest główny format zwracany przez wFirma API
+    // Główny format wFirma: { "0": { invoice: {...} }, "1": ... }
     if (keys.length > 0 && keys.every(k => /^\d+$/.test(k))) {
       return Object.values(obj).map((item) => {
         const itemObj = item as Record<string, unknown>
@@ -87,15 +86,9 @@ function normalizeList(raw: unknown, itemKey: string): Record<string, unknown>[]
       })
     }
 
-    // Obiekt { invoice: [...] }
     const inner = obj[itemKey]
-    if (Array.isArray(inner)) {
-      return inner as Record<string, unknown>[]
-    }
-    // Obiekt { invoice: {...} } — jeden element
-    if (inner && typeof inner === 'object') {
-      return [inner as Record<string, unknown>]
-    }
+    if (Array.isArray(inner)) return inner as Record<string, unknown>[]
+    if (inner && typeof inner === 'object') return [inner as Record<string, unknown>]
   }
 
   return []
@@ -106,15 +99,16 @@ export async function fetchInvoices(
   dateFrom: string,
   dateTo: string
 ): Promise<Invoice[]> {
+  // Pobieramy bez warunków datowych — wFirma conditions zwracają błędny format odpowiedzi.
+  // Filtrujemy daty po stronie klienta.
   const response = await wfirmaPost<Record<string, unknown>>({
     credentials,
     endpoint: 'invoices/find',
     body: {
       invoices: {
         parameters: {
-          conditions: { or: [{ date: { from: dateFrom, to: dateTo } }] },
           page: 1,
-          limit: 100,
+          limit: 500,
           order: [{ field: 'date', direction: 'DESC' }]
         }
       }
@@ -123,21 +117,23 @@ export async function fetchInvoices(
 
   const invoices = normalizeList(response['invoices'], 'invoice')
 
-  return invoices.map((inv) => {
-    const contractor = inv['contractor'] as Record<string, unknown> | undefined
-    // wFirma używa 'paymentstate' (bez podkreślnika) i 'total' jako gross
-    const paid = inv['paymentstate'] === 'paid' || inv['payment_state'] === 'paid'
-    return {
-      id: String(inv['id'] ?? ''),
-      number: String(inv['fullnumber'] ?? inv['number'] ?? ''),
-      date: String(inv['date'] ?? ''),
-      clientName: String(contractor?.['name'] ?? ''),
-      nettoAmount: parseFloat(String(inv['netto'] ?? '0')),
-      vatAmount: parseFloat(String(inv['vat'] ?? '0')),
-      bruttoAmount: parseFloat(String(inv['gross'] ?? inv['total'] ?? inv['brutto'] ?? '0')),
-      paid
-    } satisfies Invoice
-  })
+  return invoices
+    .map((inv) => {
+      const contractor = inv['contractor'] as Record<string, unknown> | undefined
+      const paid = inv['paymentstate'] === 'paid' || inv['payment_state'] === 'paid'
+      return {
+        id: String(inv['id'] ?? ''),
+        number: String(inv['fullnumber'] ?? inv['number'] ?? ''),
+        date: String(inv['date'] ?? ''),
+        clientName: String(contractor?.['name'] ?? ''),
+        nettoAmount: parseFloat(String(inv['netto'] ?? '0')),
+        vatAmount: parseFloat(String(inv['vat'] ?? '0')),
+        bruttoAmount: parseFloat(String(inv['gross'] ?? inv['total'] ?? inv['brutto'] ?? '0')),
+        paid
+      } satisfies Invoice
+    })
+    // Filtruj po zakresie dat po stronie klienta
+    .filter(inv => inv.date >= dateFrom && inv.date <= dateTo)
 }
 
 export async function fetchExpenses(
@@ -151,9 +147,8 @@ export async function fetchExpenses(
     body: {
       expenses: {
         parameters: {
-          conditions: { or: [{ date: { from: dateFrom, to: dateTo } }] },
           page: 1,
-          limit: 200,
+          limit: 500,
           order: [{ field: 'date', direction: 'DESC' }]
         }
       }
@@ -162,13 +157,15 @@ export async function fetchExpenses(
 
   const expenses = normalizeList(response['expenses'], 'expense')
 
-  return expenses.map((exp) => ({
-    id: String(exp['id'] ?? ''),
-    date: String(exp['date'] ?? ''),
-    description: String(exp['name'] ?? exp['description'] ?? ''),
-    nettoAmount: parseFloat(String(exp['netto'] ?? '0')),
-    category: String(exp['category'] ?? '')
-  } satisfies Expense))
+  return expenses
+    .map((exp) => ({
+      id: String(exp['id'] ?? ''),
+      date: String(exp['date'] ?? ''),
+      description: String(exp['name'] ?? exp['description'] ?? ''),
+      nettoAmount: parseFloat(String(exp['netto'] ?? '0')),
+      category: String(exp['category'] ?? '')
+    } satisfies Expense))
+    .filter(exp => exp.date >= dateFrom && exp.date <= dateTo)
 }
 
 export async function testConnection(credentials: WfirmaCredentials): Promise<void> {
