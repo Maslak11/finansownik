@@ -73,6 +73,7 @@ export interface Expense {
   date: string
   description: string
   nettoAmount: number
+  vatAmount: number
   category: string
 }
 

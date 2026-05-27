@@ -178,6 +178,7 @@ export async function fetchExpenses(
       date: String(exp['date'] ?? ''),
       description: String(exp['name'] ?? exp['description'] ?? ''),
       nettoAmount: parseFloat(String(exp['netto'] ?? '0')),
+      vatAmount: parseFloat(String(exp['vat'] ?? exp['vat_netto'] ?? '0')),
       category: String(exp['category'] ?? '')
     } satisfies Expense))
     .filter(exp => exp.date >= dateFrom && exp.date <= dateTo)
