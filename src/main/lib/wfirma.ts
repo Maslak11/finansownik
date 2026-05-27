@@ -130,14 +130,18 @@ export async function fetchInvoices(
   const mapped = invoices.map((inv) => {
     const contractor = inv['contractor'] as Record<string, unknown> | undefined
     const paid = inv['paymentstate'] === 'paid' || inv['payment_state'] === 'paid'
+    const netto = parseFloat(String(inv['netto'] ?? '0'))
+    const brutto = parseFloat(String(inv['gross'] ?? inv['total'] ?? inv['brutto'] ?? '0'))
+    // wFirma nie zawsze zwraca pole 'vat' — liczymy jako brutto - netto
+    const vat = parseFloat(String(inv['vat'] ?? inv['tax'] ?? '0')) || Math.round((brutto - netto) * 100) / 100
     return {
       id: String(inv['id'] ?? ''),
       number: String(inv['fullnumber'] ?? inv['number'] ?? ''),
       date: String(inv['date'] ?? ''),
       clientName: String(contractor?.['name'] ?? ''),
-      nettoAmount: parseFloat(String(inv['netto'] ?? '0')),
-      vatAmount: parseFloat(String(inv['vat'] ?? '0')),
-      bruttoAmount: parseFloat(String(inv['gross'] ?? inv['total'] ?? inv['brutto'] ?? '0')),
+      nettoAmount: netto,
+      vatAmount: vat,
+      bruttoAmount: brutto,
       paid
     } satisfies Invoice
   })
