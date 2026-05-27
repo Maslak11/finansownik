@@ -12,8 +12,8 @@ interface CostResult {
   oszczednoscPodatkowa: number
   realnyKosztFirmowy: number
   realnyKosztPrywatny: number
-  oplaca: boolean
   roznica: number
+  procentOszczednosci: number
 }
 
 function calcCostBenefit(
@@ -27,6 +27,7 @@ function calcCostBenefit(
   const realnyKosztFirmowy = brutto - vat - oszczednoscPodatkowa  // VAT odliczony + koszt zmniejsza PIT
   const realnyKosztPrywatny = brutto  // płacisz pełne brutto z opodatkowanego dochodu
 
+  const roznica = round2(realnyKosztPrywatny - realnyKosztFirmowy)
   return {
     zakupBrutto: brutto,
     vat: round2(vat),
@@ -34,8 +35,8 @@ function calcCostBenefit(
     oszczednoscPodatkowa: round2(oszczednoscPodatkowa),
     realnyKosztFirmowy: round2(realnyKosztFirmowy),
     realnyKosztPrywatny: round2(realnyKosztPrywatny),
-    oplaca: realnyKosztFirmowy < realnyKosztPrywatny,
-    roznica: round2(realnyKosztPrywatny - realnyKosztFirmowy)
+    roznica,
+    procentOszczednosci: round2((roznica / realnyKosztPrywatny) * 100)
   }
 }
 
@@ -127,16 +128,19 @@ export default function Kalkulator() {
 
         {costResult && (
           <div className="mt-5 space-y-4">
-            <div className={`rounded-lg p-4 ${costResult.oplaca ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
-              <p className={`font-semibold text-lg ${costResult.oplaca ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {costResult.oplaca
-                  ? `✓ Opłaca się — oszczędzasz ${fmt(costResult.roznica)} zł`
-                  : `✗ Nie opłaca się wrzucać w koszty`}
-              </p>
-              <p className="text-sm text-slate-600 mt-1">
-                Jako koszt firmowy: <strong>{fmt(costResult.realnyKosztFirmowy)} zł</strong> ·
-                Prywatnie: <strong>{fmt(costResult.realnyKosztPrywatny)} zł</strong>
-              </p>
+            <div className="rounded-lg p-4 bg-slate-50 border border-slate-200">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-2xl font-bold text-slate-900">
+                  {fmt(costResult.realnyKosztFirmowy)} zł
+                </span>
+                <span className="text-slate-500 text-sm">realny koszt na firmę</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2 flex-wrap text-sm">
+                <span className="text-slate-400 line-through">{fmt(costResult.realnyKosztPrywatny)} zł prywatnie</span>
+                <span className="text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-full">
+                  −{fmt(costResult.roznica)} zł ({costResult.procentOszczednosci.toFixed(0)}% taniej)
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
