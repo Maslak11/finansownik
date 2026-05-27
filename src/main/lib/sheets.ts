@@ -99,6 +99,7 @@ export async function appendAllocationToSheets(
     alloc.koperty.zus,
     alloc.koperty.czynsz,
     alloc.koperty.subskrypcje,
+    alloc.koperty.raty,
     alloc.koperty.dom,
     alloc.koperty.inwestycje,
     alloc.koperty.dostepne,
@@ -166,9 +167,10 @@ export async function readAllocationsFromSheets(
         zus: parseFloat(String(row[5] ?? '0')),
         czynsz: parseFloat(String(row[6] ?? '0')),
         subskrypcje: parseFloat(String(row[7] ?? '0')),
-        dom: parseFloat(String(row[8] ?? '0')),
-        inwestycje: parseFloat(String(row[9] ?? '0')),
-        dostepne: parseFloat(String(row[10] ?? '0'))
+        raty: parseFloat(String(row[8] ?? '0')),
+        dom: parseFloat(String(row[9] ?? '0')),
+        inwestycje: parseFloat(String(row[10] ?? '0')),
+        dostepne: parseFloat(String(row[11] ?? '0'))
       },
       savedToSheets: true
     }))

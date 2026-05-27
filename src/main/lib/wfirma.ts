@@ -191,11 +191,21 @@ export async function fetchExpenses(
     // Jeśli brak pola vat, oblicz z gross - netto (jak dla faktur)
     const vatAmount = vatDirect || (gross > 0 && gross > netto ? Math.round((gross - netto) * 100) / 100 : 0)
 
-    // Kontrahent — obiekt z polem name lub sam string
+    // Kontrahent — wFirma może zwrócić obiekt z name, sam ID lub pusty
+    // Sprawdzamy contractor, potem contractor_detail jako fallback
     const contractorRaw = exp['contractor']
-    const contractorName = typeof contractorRaw === 'object' && contractorRaw !== null
-      ? String((contractorRaw as Record<string, unknown>)['name'] ?? '')
-      : ''
+    const contractorDetailRaw = exp['contractor_detail']
+    let contractorName = ''
+    if (typeof contractorRaw === 'object' && contractorRaw !== null) {
+      contractorName = String((contractorRaw as Record<string, unknown>)['name'] ?? '')
+    }
+    if (!contractorName && typeof contractorDetailRaw === 'object' && contractorDetailRaw !== null) {
+      contractorName = String((contractorDetailRaw as Record<string, unknown>)['name'] ?? '')
+    }
+    // Debug — można usunąć po weryfikacji
+    if (!contractorName) {
+      console.log('[wFirma] expense contractor raw:', JSON.stringify(contractorRaw), '| detail:', JSON.stringify(contractorDetailRaw))
+    }
 
     return {
       id: String(exp['id'] ?? ''),
