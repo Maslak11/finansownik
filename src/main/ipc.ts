@@ -16,7 +16,8 @@ import {
   remove as removeManualInvoice,
   parseCSVRow
 } from './lib/manual-invoices'
-import type { AppConfig, Invoice, InvoiceAllocation, MonthlySummary } from '../shared/types'
+import { askGemini } from './lib/gemini'
+import type { AppConfig, Invoice, InvoiceAllocation, MonthlySummary, FinancialContext, ChatMessage } from '../shared/types'
 
 function handle<T>(
   channel: string,
@@ -105,6 +106,14 @@ export function registerIpcHandlers(): void {
     creds: AppConfig['sheets']
     month?: string
   }) => readAllocationsFromSheets(creds, month))
+
+  // --- Asystent AI (Gemini) ---
+  handle('ai:ask', async ({ apiKey, message, context, history }: {
+    apiKey: string
+    message: string
+    context: FinancialContext
+    history: ChatMessage[]
+  }) => askGemini(apiKey, message, context, history))
 
   // --- Ręczne faktury (local electron-store) ---
   handle('manual:getAll', async () => getManualInvoices())

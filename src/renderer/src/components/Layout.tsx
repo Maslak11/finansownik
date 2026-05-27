@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, FileText, TrendingDown, Receipt, Calculator, Settings } from 'lucide-react'
+import { LayoutDashboard, FileText, TrendingDown, Receipt, Calculator, Settings, Bot, CreditCard } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 const nav = [
@@ -8,6 +8,8 @@ const nav = [
   { to: '/koszty', label: 'Koszty', Icon: TrendingDown },
   { to: '/podatek', label: 'Podatek i ZUS', Icon: Receipt },
   { to: '/kalkulator', label: 'Kalkulator kosztów', Icon: Calculator },
+  { to: '/raty', label: 'Raty i kredyty', Icon: CreditCard },
+  { to: '/asystent', label: 'Asystent AI', Icon: Bot },
   { to: '/ustawienia', label: 'Ustawienia', Icon: Settings }
 ]
 
@@ -21,7 +23,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           <p className="text-slate-400 text-xs mt-0.5">kalkulator JDG</p>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {nav.map(({ to, label, Icon }) => (
             <NavLink
               key={to}

@@ -176,14 +176,6 @@ export async function fetchExpenses(
 
   const expenses = normalizeList(response['expenses'], 'expense')
 
-  // Zaloguj pola pierwszego kosztu żeby zobaczyć dostępne klucze
-  if (expenses.length > 0) {
-    console.log('[wFirma] expense fields:', Object.keys(expenses[0]))
-    console.log('[wFirma] expense[0] vat fields:', JSON.stringify(
-      Object.fromEntries(Object.entries(expenses[0]).filter(([k]) => k.includes('vat') || k.includes('tax') || k.includes('gross') || k.includes('brutto') || k.includes('netto')))
-    ))
-  }
-
   const mapped = expenses.map((exp) => {
     // taxregister_date = data ujęcia w KPiR — to jest data którą wFirma używa
     // do przypisania kosztu do miesiąca. Jeśli brak, fallback na date.

@@ -319,6 +319,22 @@ export default function Ustawienia() {
         </div>
       </Section>
 
+      {/* Asystent AI — Gemini */}
+      <Section title="Asystent AI (Gemini)" hint="Klucz API do Google Gemini — bezpłatnie na aistudio.google.com → Get API key. Używany przez zakładkę Asystent AI.">
+        <Field label="Gemini API Key">
+          <input
+            type="password"
+            value={draft.geminiApiKey ?? ''}
+            onChange={(e) => update('geminiApiKey', e.target.value)}
+            placeholder="AIzaSy..."
+            className="input font-mono"
+          />
+          <p className="text-xs text-slate-400 mt-1">
+            Darmowy tier: ~1 500 zapytań/dzień. Klucz przechowywany lokalnie.
+          </p>
+        </Field>
+      </Section>
+
       {/* Ścieżka pliku konfiguracji */}
       {configPath && (
         <div className="card p-4 bg-slate-50 flex items-center justify-between text-xs text-slate-500">

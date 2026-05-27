@@ -22,6 +22,15 @@ export interface FixedExpense {
   amount: number  // PLN/miesiąc
 }
 
+export interface Installment {
+  id: string
+  name: string            // np. "Leasing auto", "Laptop Dell XPS", "Pożyczka gotówkowa"
+  monthlyAmount: number   // rata miesięczna w PLN
+  totalInstallments: number     // całkowita liczba rat
+  remainingInstallments: number // ile rat pozostało
+  startYearMonth: string  // "YYYY-MM" — kiedy zaczęło
+}
+
 export interface AllocationConfig {
   dom: number         // % z netto
   inwestycje: number  // % z netto
@@ -35,7 +44,9 @@ export interface AppConfig {
   allocation: AllocationConfig
   czynsz: number
   fixedExpenses: FixedExpense[]
+  installments: Installment[]
   wizardCompleted: boolean
+  geminiApiKey: string
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -54,7 +65,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   czynsz: 0,
   fixedExpenses: [],
-  wizardCompleted: false
+  installments: [],
+  wizardCompleted: false,
+  geminiApiKey: ''
 }
 
 export interface Invoice {
@@ -113,6 +126,22 @@ export interface TaxResult {
   podatek: number
   zusSpołeczne: number
   totalObciazenie: number
+}
+
+export interface FinancialContext {
+  month: string
+  revenue: number
+  expenses: number
+  dochod: number
+  podatek: number
+  skladkaZdrowotna: number
+  zusSpołeczne: number
+  totalObciazenie: number
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model'
+  text: string
 }
 
 export type ConnectionStatus = 'idle' | 'testing' | 'ok' | 'error'

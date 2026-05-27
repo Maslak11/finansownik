@@ -1,4 +1,4 @@
-import type { AppConfig, Invoice, Expense, InvoiceAllocation, MonthlySummary, IpcResult } from './types'
+import type { AppConfig, Invoice, Expense, InvoiceAllocation, MonthlySummary, IpcResult, FinancialContext, ChatMessage } from './types'
 
 declare global {
   interface Window {
@@ -41,6 +41,10 @@ export const ipc = {
     invoke<boolean>('sheets:saveSummary', { creds, summary }),
   getAllocations: (creds: AppConfig['sheets'], month?: string) =>
     invoke<InvoiceAllocation[]>('sheets:getAllocations', { creds, month }),
+
+  // AI asystent
+  askAi: (apiKey: string, message: string, context: FinancialContext, history: ChatMessage[]) =>
+    invoke<string>('ai:ask', { apiKey, message, context, history }),
 
   // Ręczne faktury
   getManualInvoices: () => invoke<Invoice[]>('manual:getAll'),

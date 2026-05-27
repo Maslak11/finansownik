@@ -6,6 +6,8 @@ import Faktury from './pages/Faktury'
 import Koszty from './pages/Koszty'
 import Podatek from './pages/Podatek'
 import Kalkulator from './pages/Kalkulator'
+import Raty from './pages/Raty'
+import Asystent from './pages/Asystent'
 import Ustawienia from './pages/Ustawienia'
 import Wizard from './pages/Wizard'
 import { ipc } from './lib/ipc'
@@ -42,10 +44,16 @@ export default function App() {
   useEffect(() => {
     ipc.getConfig()
       .then((c) => {
-        setConfigState(c)
+        // Migracja: uzupełnij pola dodane w nowych wersjach aplikacji
+        const merged: AppConfig = {
+          ...DEFAULT_CONFIG,
+          ...c,
+          installments: c.installments ?? [],
+          geminiApiKey: c.geminiApiKey ?? ''
+        }
+        setConfigState(merged)
         setConfigLoaded(true)
-        // Pokaż kreator jeśli nigdy nie był ukończony
-        if (!c.wizardCompleted) setShowWizard(true)
+        if (!merged.wizardCompleted) setShowWizard(true)
       })
       .catch(console.error)
   }, [])
@@ -93,6 +101,8 @@ export default function App() {
           <Route path="/koszty" element={<Koszty />} />
           <Route path="/podatek" element={<Podatek />} />
           <Route path="/kalkulator" element={<Kalkulator />} />
+          <Route path="/raty" element={<Raty />} />
+          <Route path="/asystent" element={<Asystent />} />
           <Route path="/ustawienia" element={<Ustawienia />} />
         </Routes>
       </Layout>
