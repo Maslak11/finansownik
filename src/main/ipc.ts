@@ -9,7 +9,14 @@ import {
   initializeSheets,
   writeConfigToSheets
 } from './lib/sheets'
-import type { AppConfig, InvoiceAllocation, MonthlySummary } from '../shared/types'
+import {
+  getAll as getManualInvoices,
+  save as saveManualInvoice,
+  saveMany as saveManyManualInvoices,
+  remove as removeManualInvoice,
+  parseCSVRow
+} from './lib/manual-invoices'
+import type { AppConfig, Invoice, InvoiceAllocation, MonthlySummary } from '../shared/types'
 
 function handle<T>(
   channel: string,
@@ -98,4 +105,52 @@ export function registerIpcHandlers(): void {
     creds: AppConfig['sheets']
     month?: string
   }) => readAllocationsFromSheets(creds, month))
+
+  // --- Ręczne faktury (local electron-store) ---
+  handle('manual:getAll', async () => getManualInvoices())
+
+  handle('manual:save', async (invoice: Invoice) => {
+    saveManualInvoice(invoice)
+    return true
+  })
+
+  handle('manual:delete', async (id: string) => {
+    removeManualInvoice(id)
+    return true
+  })
+
+  handle('manual:importCSV', async ({ csvText }: { csvText: string }) => {
+    const lines = csvText.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) throw new Error('Plik CSV jest pusty lub zawiera tylko nagłówek.')
+
+    // Wykryj separator (przecinek lub średnik)
+    const sep = lines[0].includes(';') ? ';' : ','
+
+    const splitLine = (line: string): string[] => {
+      const result: string[] = []
+      let current = ''
+      let inQuotes = false
+      for (const char of line) {
+        if (char === '"') { inQuotes = !inQuotes; continue }
+        if (char === sep && !inQuotes) { result.push(current); current = ''; continue }
+        current += char
+      }
+      result.push(current)
+      return result
+    }
+
+    const headers = splitLine(lines[0])
+    const imported: Invoice[] = []
+
+    for (const line of lines.slice(1)) {
+      if (!line.trim()) continue
+      const row = splitLine(line)
+      const invoice = parseCSVRow(headers, row)
+      if (invoice) imported.push(invoice)
+    }
+
+    if (imported.length === 0) throw new Error('Nie znaleziono poprawnych faktur w pliku CSV. Sprawdź nagłówki kolumn.')
+    saveManyManualInvoices(imported)
+    return imported.length
+  })
 }

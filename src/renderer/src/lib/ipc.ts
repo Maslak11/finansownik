@@ -40,5 +40,11 @@ export const ipc = {
   saveSummary: (creds: AppConfig['sheets'], summary: MonthlySummary) =>
     invoke<boolean>('sheets:saveSummary', { creds, summary }),
   getAllocations: (creds: AppConfig['sheets'], month?: string) =>
-    invoke<InvoiceAllocation[]>('sheets:getAllocations', { creds, month })
+    invoke<InvoiceAllocation[]>('sheets:getAllocations', { creds, month }),
+
+  // Ręczne faktury
+  getManualInvoices: () => invoke<Invoice[]>('manual:getAll'),
+  saveManualInvoice: (invoice: Invoice) => invoke<boolean>('manual:save', invoice),
+  deleteManualInvoice: (id: string) => invoke<boolean>('manual:delete', id),
+  importCSV: (csvText: string) => invoke<number>('manual:importCSV', { csvText })
 }
