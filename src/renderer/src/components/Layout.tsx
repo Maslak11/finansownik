@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, FileText, Calculator, Settings } from 'lucide-react'
+import { LayoutDashboard, FileText, Calculator, Settings, Receipt } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 const nav = [
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/faktury', label: 'Faktury', Icon: FileText },
+  { to: '/podatek', label: 'Podatek i ZUS', Icon: Receipt },
   { to: '/kalkulator', label: 'Kalkulator kosztów', Icon: Calculator },
   { to: '/ustawienia', label: 'Ustawienia', Icon: Settings }
 ]

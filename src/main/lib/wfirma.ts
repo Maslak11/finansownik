@@ -142,8 +142,12 @@ export async function fetchInvoices(
     } satisfies Invoice
   })
 
-  const filtered = mapped.filter(inv => inv.date >= dateFrom && inv.date <= dateTo)
-  console.log('[wFirma] after date filter:', filtered.length, 'of', mapped.length)
+  const filtered = mapped
+    .filter(inv => inv.date >= dateFrom && inv.date <= dateTo)
+    // Odrzuć oferty (OF), proformy (PRO) i korekty do ofert — nie są przychodem
+    .filter(inv => !/^(OF|PRO)\b/i.test(inv.number))
+
+  console.log('[wFirma] after date+type filter:', filtered.length, 'of', mapped.length)
   return filtered
 }
 
