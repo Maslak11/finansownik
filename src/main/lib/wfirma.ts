@@ -176,16 +176,24 @@ export async function fetchExpenses(
 
   const expenses = normalizeList(response['expenses'], 'expense')
 
-  return expenses
-    .map((exp) => ({
+  const mapped = expenses.map((exp) => {
+    // taxregister_date = data ujęcia w KPiR — to jest data którą wFirma używa
+    // do przypisania kosztu do miesiąca. Jeśli brak, fallback na date.
+    const taxDate = String(exp['taxregister_date'] ?? exp['date'] ?? '')
+    const invoiceDate = String(exp['date'] ?? '')
+    return {
       id: String(exp['id'] ?? ''),
-      date: String(exp['date'] ?? ''),
+      date: taxDate || invoiceDate,   // data KPiR = data podatkowa
       description: String(exp['name'] ?? exp['description'] ?? ''),
       nettoAmount: parseFloat(String(exp['netto'] ?? '0')),
       vatAmount: parseFloat(String(exp['vat'] ?? exp['vat_netto'] ?? '0')),
       category: String(exp['category'] ?? '')
-    } satisfies Expense))
-    .filter(exp => exp.date >= dateFrom && exp.date <= dateTo)
+    } satisfies Expense
+  })
+
+  const filtered = mapped.filter(exp => exp.date >= dateFrom && exp.date <= dateTo)
+  console.log('[wFirma] fetchExpenses', dateFrom, '->', dateTo, ':', filtered.length, 'of', mapped.length)
+  return filtered
 }
 
 export async function testConnection(credentials: WfirmaCredentials): Promise<void> {
