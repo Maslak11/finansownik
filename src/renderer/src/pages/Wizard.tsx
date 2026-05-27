@@ -251,12 +251,7 @@ export default function Wizard({ initialConfig, onComplete }: Props) {
                       value={draft.wfirma.secretKey}
                       onChange={e => updateWfirma('secretKey', e.target.value)} />
                   </Field>
-                  <Field label="App Key">
-                    <input type="password" className="input font-mono"
-                      placeholder="appKey…"
-                      value={draft.wfirma.appKey}
-                      onChange={e => updateWfirma('appKey', e.target.value)} />
-                  </Field>
+
                 </div>
 
                 <div className="flex items-center gap-3">

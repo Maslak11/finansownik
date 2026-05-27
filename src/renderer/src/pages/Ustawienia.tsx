@@ -145,15 +145,7 @@ export default function Ustawienia() {
               className="input font-mono"
             />
           </Field>
-          <Field label="App Key">
-            <input
-              type="password"
-              value={draft.wfirma.appKey}
-              onChange={(e) => update('wfirma', { ...draft.wfirma, appKey: e.target.value })}
-              placeholder="appKey z wFirma"
-              className="input font-mono"
-            />
-          </Field>
+
           <div className="flex items-center gap-3 pt-1">
             <button
               onClick={testWfirma}

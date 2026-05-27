@@ -10,9 +10,9 @@ interface WfirmaRequestOptions {
 
 async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
   const { credentials, endpoint, body } = opts
-  const { accessKey, secretKey, appKey } = credentials
+  const { accessKey, secretKey } = credentials
 
-  const url = `${BASE_URL}/${endpoint}?accesskey=${encodeURIComponent(accessKey)}&secretkey=${encodeURIComponent(secretKey)}&appkey=${encodeURIComponent(appKey)}`
+  const url = `${BASE_URL}/${endpoint}?accesskey=${encodeURIComponent(accessKey)}&secretkey=${encodeURIComponent(secretKey)}`
 
   const res = await fetch(url, {
     method: 'POST',
