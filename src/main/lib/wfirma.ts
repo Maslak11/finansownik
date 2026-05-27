@@ -13,7 +13,8 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
   const { accessKey, secretKey, appKey } = credentials
 
   // wFirma API Key auth: trzy dedykowane nagłówki HTTP
-  const res = await fetch(`${BASE_URL}/${endpoint}`, {
+  // inputFormat/outputFormat=json wymagane — API domyślnie używa XML
+  const res = await fetch(`${BASE_URL}/${endpoint}?inputFormat=json&outputFormat=json`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
