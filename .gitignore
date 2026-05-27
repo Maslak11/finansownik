@@ -1,0 +1,12 @@
+node_modules/
+out/
+dist/
+*.local
+
+# Google Service Account key (never commit!)
+service-account.json
+*.key.json
+
+# Environment files
+.env
+.env.local
