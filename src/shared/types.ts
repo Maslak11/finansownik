@@ -1,6 +1,7 @@
 export interface WfirmaCredentials {
   accessKey: string
   secretKey: string
+  appKey: string
 }
 
 export interface SheetsCredentials {
@@ -38,7 +39,7 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  wfirma: { accessKey: '', secretKey: '' },
+  wfirma: { accessKey: '', secretKey: '', appKey: '' },
   sheets: { serviceAccountJson: '', spreadsheetId: '' },
   tax: {
     pitRate: 0.19,

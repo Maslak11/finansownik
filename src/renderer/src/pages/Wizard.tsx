@@ -229,13 +229,19 @@ export default function Wizard({ initialConfig, onComplete }: Props) {
                 <StepHeader icon={FileText} title="Integracja z wFirma" color="sky"
                   desc="Dzięki temu aplikacja automatycznie pobierze faktury sprzedaży i koszty z Twojego konta wFirma." />
 
-                <div className="bg-sky-50 border border-sky-100 rounded-xl p-4 text-sm text-sky-800">
-                  <p className="font-medium mb-1">Gdzie znaleźć klucze API?</p>
-                  <ol className="list-decimal list-inside space-y-0.5 text-sky-700">
-                    <li>Zaloguj się na <strong>app.wfirma.pl</strong></li>
-                    <li>Przejdź do <strong>Ustawienia → Bezpieczeństwo → Aplikacje</strong></li>
-                    <li>Kliknij <strong>Klucze API</strong> i wygeneruj nowy zestaw</li>
-                  </ol>
+                <div className="bg-sky-50 border border-sky-100 rounded-xl p-4 text-sm text-sky-800 space-y-2">
+                  <div>
+                    <p className="font-medium mb-1">Access Key + Secret Key</p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-sky-700">
+                      <li>Zaloguj się na <strong>app.wfirma.pl</strong></li>
+                      <li>Przejdź do <strong>Ustawienia → Bezpieczeństwo → Aplikacje → Klucze API</strong></li>
+                      <li>Wygeneruj nowy zestaw — <strong>secretKey widoczny tylko raz!</strong></li>
+                    </ol>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">App Key — wymagany osobny wniosek</p>
+                    <p className="text-sky-700">Wypełnij formularz na <strong>wfirma.pl/kontakt</strong> (sekcja #appKey) podając: nazwę aplikacji, e-mail i telefon. wFirma wyśle appKey na podany e-mail.</p>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -251,7 +257,12 @@ export default function Wizard({ initialConfig, onComplete }: Props) {
                       value={draft.wfirma.secretKey}
                       onChange={e => updateWfirma('secretKey', e.target.value)} />
                   </Field>
-
+                  <Field label="App Key" hint="Klucz aplikacji — otrzymasz go od wFirma e-mailem po złożeniu wniosku.">
+                    <input type="password" className="input font-mono"
+                      placeholder="appKey…"
+                      value={draft.wfirma.appKey}
+                      onChange={e => updateWfirma('appKey', e.target.value)} />
+                  </Field>
                 </div>
 
                 <div className="flex items-center gap-3">

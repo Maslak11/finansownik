@@ -6,6 +6,7 @@
       "WebFetch(domain:api.github.com)",
       "Bash(gh repo *)",
       "Bash(gh api *)"
+	  "Bash(git push *)"
     ]
   }
 }

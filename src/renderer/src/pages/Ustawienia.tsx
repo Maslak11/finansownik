@@ -125,7 +125,7 @@ export default function Ustawienia() {
       </div>
 
       {/* wFirma */}
-      <Section title="Integracja wFirma" hint="Pobierz klucze: Ustawienia wFirma → Bezpieczeństwo → Aplikacje → Klucze API">
+      <Section title="Integracja wFirma" hint="Access Key + Secret Key: Ustawienia → Bezpieczeństwo → Aplikacje → Klucze API. App Key: złóż wniosek na wfirma.pl/kontakt (#appKey) — otrzymasz e-mailem.">
         <div className="space-y-3">
           <Field label="Access Key">
             <input
@@ -142,6 +142,15 @@ export default function Ustawienia() {
               value={draft.wfirma.secretKey}
               onChange={(e) => update('wfirma', { ...draft.wfirma, secretKey: e.target.value })}
               placeholder="secretKey z wFirma"
+              className="input font-mono"
+            />
+          </Field>
+          <Field label="App Key" hint="Klucz aplikacji — otrzymasz od wFirma e-mailem po złożeniu wniosku na wfirma.pl/kontakt">
+            <input
+              type="password"
+              value={draft.wfirma.appKey}
+              onChange={(e) => update('wfirma', { ...draft.wfirma, appKey: e.target.value })}
+              placeholder="appKey od wFirma"
               className="input font-mono"
             />
           </Field>
@@ -353,11 +362,12 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="label">{label}</label>
       {children}
+      {hint && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
     </div>
   )
 }
