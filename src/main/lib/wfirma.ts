@@ -176,17 +176,35 @@ export async function fetchExpenses(
 
   const expenses = normalizeList(response['expenses'], 'expense')
 
+  // Zaloguj pola pierwszego kosztu żeby zobaczyć dostępne klucze
+  if (expenses.length > 0) {
+    console.log('[wFirma] expense fields:', Object.keys(expenses[0]))
+    console.log('[wFirma] expense[0] vat fields:', JSON.stringify(
+      Object.fromEntries(Object.entries(expenses[0]).filter(([k]) => k.includes('vat') || k.includes('tax') || k.includes('gross') || k.includes('brutto') || k.includes('netto')))
+    ))
+  }
+
   const mapped = expenses.map((exp) => {
     // taxregister_date = data ujęcia w KPiR — to jest data którą wFirma używa
     // do przypisania kosztu do miesiąca. Jeśli brak, fallback na date.
     const taxDate = String(exp['taxregister_date'] ?? exp['date'] ?? '')
     const invoiceDate = String(exp['date'] ?? '')
+
+    const netto = parseFloat(String(exp['netto'] ?? '0'))
+    // wFirma może używać różnych nazw dla kwoty VAT na koszcie
+    const gross = parseFloat(String(exp['gross'] ?? exp['brutto'] ?? exp['total'] ?? '0'))
+    const vatDirect = parseFloat(String(
+      exp['vat'] ?? exp['vat_netto'] ?? exp['vat_sum'] ?? exp['vat_total'] ?? '0'
+    ))
+    // Jeśli brak pola vat, oblicz z gross - netto (jak dla faktur)
+    const vatAmount = vatDirect || (gross > 0 && gross > netto ? Math.round((gross - netto) * 100) / 100 : 0)
+
     return {
       id: String(exp['id'] ?? ''),
-      date: taxDate || invoiceDate,   // data KPiR = data podatkowa
+      date: taxDate || invoiceDate,
       description: String(exp['name'] ?? exp['description'] ?? ''),
-      nettoAmount: parseFloat(String(exp['netto'] ?? '0')),
-      vatAmount: parseFloat(String(exp['vat'] ?? exp['vat_netto'] ?? '0')),
+      nettoAmount: netto,
+      vatAmount,
       category: String(exp['category'] ?? '')
     } satisfies Expense
   })
