@@ -3,6 +3,7 @@ import { useEffect, useState, createContext, useContext } from 'react'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Faktury from './pages/Faktury'
+import Koszty from './pages/Koszty'
 import Podatek from './pages/Podatek'
 import Kalkulator from './pages/Kalkulator'
 import Ustawienia from './pages/Ustawienia'
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/faktury" element={<Faktury />} />
+          <Route path="/koszty" element={<Koszty />} />
           <Route path="/podatek" element={<Podatek />} />
           <Route path="/kalkulator" element={<Kalkulator />} />
           <Route path="/ustawienia" element={<Ustawienia />} />
