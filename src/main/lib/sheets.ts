@@ -181,27 +181,46 @@ export async function testSheetsConnection(creds: SheetsCredentials): Promise<st
   return res.data.properties?.title ?? 'OK'
 }
 
-// Utwórz nagłówki jeśli arkusz jest nowy
+// Utwórz zakładki i nagłówki — bezpieczne przy pustym arkuszu
 export async function initializeSheets(creds: SheetsCredentials): Promise<void> {
   const sheets = getSheets(creds.serviceAccountJson)
 
-  const headers = {
-    Faktury: [
-      ['Data', 'Nr faktury', 'Kontrahent', 'Netto', 'Podatek', 'ZUS', 'Czynsz',
-        'Subskrypcje', 'Dom', 'Inwestycje', 'Dostępne', 'Zapisano']
-    ],
-    Podsumowanie: [
-      ['Miesiąc', 'Przychód', 'Koszty', 'Dochód', 'Podatek', 'ZUS łącznie', 'Liczba faktur', 'Zapisano']
-    ],
-    Konfiguracja: [['klucz', 'wartość']]
+  const SHEET_HEADERS: Record<string, string[]> = {
+    Faktury:       ['Data', 'Nr faktury', 'Kontrahent', 'Netto', 'Podatek', 'ZUS',
+                    'Czynsz', 'Subskrypcje', 'Dom', 'Inwestycje', 'Dostępne', 'Zapisano'],
+    Podsumowanie:  ['Miesiąc', 'Przychód', 'Koszty', 'Dochód', 'Podatek',
+                    'ZUS łącznie', 'Liczba faktur', 'Zapisano'],
+    Konfiguracja:  ['klucz', 'wartość'],
   }
 
-  for (const [sheet, rows] of Object.entries(headers)) {
-    await sheets.spreadsheets.values.update({
+  // 1. Pobierz listę istniejących zakładek
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: creds.spreadsheetId })
+  const existing = new Set(
+    (meta.data.sheets ?? []).map(s => s.properties?.title ?? '')
+  )
+
+  // 2. Utwórz brakujące zakładki jednym batch requestem
+  const toCreate = Object.keys(SHEET_HEADERS).filter(name => !existing.has(name))
+  if (toCreate.length > 0) {
+    await sheets.spreadsheets.batchUpdate({
       spreadsheetId: creds.spreadsheetId,
-      range: `${sheet}!A1`,
-      valueInputOption: 'RAW',
-      requestBody: { values: rows }
+      requestBody: {
+        requests: toCreate.map(title => ({
+          addSheet: { properties: { title } }
+        }))
+      }
     })
   }
+
+  // 3. Wpisz nagłówki do każdej zakładki (wiersz 1)
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: creds.spreadsheetId,
+    requestBody: {
+      valueInputOption: 'RAW',
+      data: Object.entries(SHEET_HEADERS).map(([title, headers]) => ({
+        range: `${title}!A1`,
+        values: [headers]
+      }))
+    }
+  })
 }
