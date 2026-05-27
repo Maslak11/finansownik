@@ -67,6 +67,7 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
 function normalizeList(raw: unknown, itemKey: string): Record<string, unknown>[] {
   if (!raw) return []
 
+  // Tablica: [{invoice:{...}}, ...]
   if (Array.isArray(raw)) {
     return raw.map((item) => {
       const obj = item as Record<string, unknown>
@@ -78,14 +79,17 @@ function normalizeList(raw: unknown, itemKey: string): Record<string, unknown>[]
     const obj = raw as Record<string, unknown>
     const keys = Object.keys(obj)
 
-    // Główny format wFirma: { "0": { invoice: {...} }, "1": ... }
-    if (keys.length > 0 && keys.every(k => /^\d+$/.test(k))) {
-      return Object.values(obj).map((item) => {
-        const itemObj = item as Record<string, unknown>
-        return (itemObj[itemKey] ?? itemObj) as Record<string, unknown>
+    // Główny format wFirma: {"0":{invoice:{...}},"1":{invoice:{...}},...}
+    // Obiekt może też mieć inne klucze (np. invoice_count, page) — wybieramy TYLKO numeryczne
+    const numericKeys = keys.filter(k => /^\d+$/.test(k))
+    if (numericKeys.length > 0) {
+      return numericKeys.map(k => {
+        const item = obj[k] as Record<string, unknown>
+        return (item[itemKey] ?? item) as Record<string, unknown>
       })
     }
 
+    // Fallback: { invoice: [{...}] } lub { invoice: {...} }
     const inner = obj[itemKey]
     if (Array.isArray(inner)) return inner as Record<string, unknown>[]
     if (inner && typeof inner === 'object') return [inner as Record<string, unknown>]
