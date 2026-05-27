@@ -59,6 +59,11 @@ export function allocateInvoice(input: AllocateInput): InvoiceAllocation {
 
 // Wylicz podział dla dowolnej kwoty (szybki kalkulator na dashboardzie)
 export function quickAllocate(netto: number, config: AppConfig): Koperty {
+  // Zakładamy, że ta faktura to jedna z avg faktur w miesiącu —
+  // szacujemy miesięczny przychód proporcjonalnie, żeby ZUS się nie "zjadł" całego podatku
+  const avg = Math.max(1, config.allocation.avgInvoicesPerMonth)
+  const estimatedMonthlyRevenue = netto * avg
+
   const fakeInvoice: Invoice = {
     id: 'quick',
     number: '',
@@ -71,7 +76,7 @@ export function quickAllocate(netto: number, config: AppConfig): Koperty {
   }
   const result = allocateInvoice({
     invoice: fakeInvoice,
-    totalMonthRevenue: netto,
+    totalMonthRevenue: estimatedMonthlyRevenue,
     totalMonthExpenses: 0,
     config
   })

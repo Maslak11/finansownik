@@ -18,8 +18,10 @@ function thisMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 function monthRange(ym: string) {
-  const [y, m] = ym.split('-')
-  return { dateFrom: `${y}-${m}-01`, dateTo: `${y}-${m}-31` }
+  const [y, m] = ym.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate() // dzień 0 następnego miesiąca = ostatni dzień bieżącego
+  const mm = String(m).padStart(2, '0')
+  return { dateFrom: `${y}-${mm}-01`, dateTo: `${y}-${mm}-${lastDay}` }
 }
 function genId() {
   return `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`

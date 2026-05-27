@@ -112,12 +112,7 @@ export async function fetchInvoices(
     body: {
       invoices: {
         parameters: {
-          conditions: {
-            condition: [
-              { field: 'date', operator: 'ge', value: dateFrom },
-              { field: 'date', operator: 'le', value: dateTo }
-            ]
-          },
+          conditions: { or: [{ date: { from: dateFrom, to: dateTo } }] },
           page: 1,
           limit: 100,
           order: [{ field: 'date', direction: 'DESC' }]
@@ -156,12 +151,7 @@ export async function fetchExpenses(
     body: {
       expenses: {
         parameters: {
-          conditions: {
-            condition: [
-              { field: 'date', operator: 'ge', value: dateFrom },
-              { field: 'date', operator: 'le', value: dateTo }
-            ]
-          },
+          conditions: { or: [{ date: { from: dateFrom, to: dateTo } }] },
           page: 1,
           limit: 200,
           order: [{ field: 'date', direction: 'DESC' }]
