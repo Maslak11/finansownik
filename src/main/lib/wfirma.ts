@@ -40,7 +40,6 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
   try {
     json = JSON.parse(text) as Record<string, unknown>
   } catch {
-    // API zwróciło XML lub inną odpowiedź — wyciągnij komunikat
     const xmlCode = text.match(/<code>([^<]+)<\/code>/)?.[1]
     const xmlMsg = text.match(/<message>([^<]+)<\/message>/)?.[1]
     throw new Error(xmlMsg ?? xmlCode ?? `Nieoczekiwana odpowiedź (${res.status}): ${text.slice(0, 300)}`)
@@ -56,20 +55,18 @@ async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
 }
 
 /**
- * wFirma może zwrócić listę na kilka sposobów:
- *   A) [ { invoice: {...} }, ... ]          — tablica obiektów-opakowań
- *   B) { invoice: [ {...}, {...} ] }         — obiekt z tablicą wewnątrz
- *   C) { invoice: {...} }                   — obiekt z jednym elementem
- *   D) []                                   — pusta tablica
- * Funkcja normalizuje wszystkie warianty do płaskiej tablicy rekordów.
+ * wFirma zwraca listy jako obiekt z kluczami numerycznymi:
+ *   { "0": { invoice: {...} }, "1": { invoice: {...} }, ... }
+ *
+ * Obsługuje też inne warianty na wszelki wypadek:
+ *   - tablica [ { invoice: {...} }, ... ]
+ *   - { invoice: [ {...} ] }
+ *   - { invoice: {...} }
  */
 function normalizeList(raw: unknown, itemKey: string): Record<string, unknown>[] {
-  console.log(`[wFirma] raw "${itemKey}" type:`, typeof raw, Array.isArray(raw) ? 'array' : '')
-  console.log(`[wFirma] raw "${itemKey}" value:`, JSON.stringify(raw)?.slice(0, 500))
-
   if (!raw) return []
 
-  // Wariant A: tablica [ { invoice: {...} }, ... ]
+  // Tablica — iterujemy i odpkowujemy itemKey
   if (Array.isArray(raw)) {
     return raw.map((item) => {
       const obj = item as Record<string, unknown>
@@ -77,21 +74,28 @@ function normalizeList(raw: unknown, itemKey: string): Record<string, unknown>[]
     })
   }
 
-  // Wariant B/C: obiekt { invoice: [...] lub {...} }
   if (typeof raw === 'object') {
     const obj = raw as Record<string, unknown>
-    const inner = obj[itemKey]
+    const keys = Object.keys(obj)
 
+    // Obiekt z kluczami numerycznymi: { "0": { invoice: {...} }, "1": ... }
+    // To jest główny format zwracany przez wFirma API
+    if (keys.length > 0 && keys.every(k => /^\d+$/.test(k))) {
+      return Object.values(obj).map((item) => {
+        const itemObj = item as Record<string, unknown>
+        return (itemObj[itemKey] ?? itemObj) as Record<string, unknown>
+      })
+    }
+
+    // Obiekt { invoice: [...] }
+    const inner = obj[itemKey]
     if (Array.isArray(inner)) {
-      // Wariant B
       return inner as Record<string, unknown>[]
     }
+    // Obiekt { invoice: {...} } — jeden element
     if (inner && typeof inner === 'object') {
-      // Wariant C — pojedynczy element
       return [inner as Record<string, unknown>]
     }
-    // Sam obiekt to jeden element (brak klucza zagnieżdżonego)
-    return [obj]
   }
 
   return []
@@ -126,6 +130,8 @@ export async function fetchInvoices(
 
   return invoices.map((inv) => {
     const contractor = inv['contractor'] as Record<string, unknown> | undefined
+    // wFirma używa 'paymentstate' (bez podkreślnika) i 'total' jako gross
+    const paid = inv['paymentstate'] === 'paid' || inv['payment_state'] === 'paid'
     return {
       id: String(inv['id'] ?? ''),
       number: String(inv['fullnumber'] ?? inv['number'] ?? ''),
@@ -133,8 +139,8 @@ export async function fetchInvoices(
       clientName: String(contractor?.['name'] ?? ''),
       nettoAmount: parseFloat(String(inv['netto'] ?? '0')),
       vatAmount: parseFloat(String(inv['vat'] ?? '0')),
-      bruttoAmount: parseFloat(String(inv['gross'] ?? inv['brutto'] ?? '0')),
-      paid: inv['payment_state'] === 'paid'
+      bruttoAmount: parseFloat(String(inv['gross'] ?? inv['total'] ?? inv['brutto'] ?? '0')),
+      paid
     } satisfies Invoice
   })
 }
