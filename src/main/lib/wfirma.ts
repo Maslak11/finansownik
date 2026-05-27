@@ -8,38 +8,59 @@ interface WfirmaRequestOptions {
   body: object
 }
 
+function basicAuth(accessKey: string, secretKey: string): string {
+  return 'Basic ' + Buffer.from(`${accessKey}:${secretKey}`).toString('base64')
+}
+
 async function wfirmaPost<T>(opts: WfirmaRequestOptions): Promise<T> {
   const { credentials, endpoint, body } = opts
   const { accessKey, secretKey } = credentials
 
-  const url = `${BASE_URL}/${endpoint}?accesskey=${encodeURIComponent(accessKey)}&secretkey=${encodeURIComponent(secretKey)}`
+  const url = `${BASE_URL}/${endpoint}`
 
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json'
+      'Accept': 'application/json',
+      'Authorization': basicAuth(accessKey, secretKey)
     },
     body: JSON.stringify(body)
   })
 
+  const text = await res.text()
+
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`wFirma API ${res.status}: ${text}`)
+    // Wyciągnij <code> z XML jeśli odpowiedź to XML
+    const xmlCode = text.match(/<code>([^<]+)<\/code>/)?.[1]
+    const msg = xmlCode === 'AUTH'
+      ? 'Nieprawidłowe klucze API (AUTH). Sprawdź Access Key i Secret Key.'
+      : xmlCode
+      ? `wFirma błąd: ${xmlCode}`
+      : `wFirma API ${res.status}: ${text.slice(0, 200)}`
+    throw new Error(msg)
   }
 
-  const json = await res.json() as Record<string, unknown>
+  // Parsuj JSON
+  let json: Record<string, unknown>
+  try {
+    json = JSON.parse(text) as Record<string, unknown>
+  } catch {
+    // API zwróciło XML zamiast JSON — wyciągnij kod błędu
+    const xmlCode = text.match(/<code>([^<]+)<\/code>/)?.[1]
+    throw new Error(xmlCode ? `wFirma błąd: ${xmlCode}` : `Nieoczekiwana odpowiedź API: ${text.slice(0, 200)}`)
+  }
 
-  // wFirma zwraca {"status":{"code":"OK",...},...}
+  // wFirma zwraca {"status":{"code":"OK"},...}
   const status = json['status'] as { code?: string; message?: string } | undefined
   if (status && status.code !== 'OK') {
-    throw new Error(`wFirma błąd: ${status.message ?? JSON.stringify(status)}`)
+    throw new Error(`wFirma błąd: ${status.message ?? status.code}`)
   }
 
   return json as T
 }
 
-// Pobierz faktury sprzedaży z danego miesiąca
+// Pobierz faktury sprzedaży z danego okresu
 export async function fetchInvoices(
   credentials: WfirmaCredentials,
   dateFrom: string,
